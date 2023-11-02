@@ -1,14 +1,9 @@
-import os
-import sys
 import time
-import shutil
-import skimage
 import morphonet
 import numpy as np
 import vtkmodules.all as vtk
-import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
-from skimage import morphology,io,measure,color,filters
+from skimage import morphology,measure
 
 
 # Creates a basic icosahedron sphere of 12 vertices
@@ -177,76 +172,58 @@ def generate_regular_meshes(image_file, subdivisions, iterations, neta, cell_sur
     
         #### Comupte surface pixels
         cell_mask = labeled_image == cl
-        cell_surface_mask = cell_mask ^ morphology.erosion(cell_mask, morphology.cube(5))
+        cell_surface_mask = cell_mask ^ morphology.erosion(cell_mask, morphology.cube(3)) if cell_surfaces else cell_mask ^ morphology.erosion(cell_mask)
         s_p = np.where(cell_surface_mask)
         surface_pixels = np.array([(s_p[0][i], s_p[1][i], s_p[2][i]) for i in range(len(s_p[0]))])
         
-        a_p = np.where(cell_surface_mask)
-        all_pixels = np.array([(a_p[0][i], a_p[1][i], a_p[2][i]) for i in range(len(a_p[0]))])
+        #a_p = np.where(cell_surface_mask)
+        #all_pixels = np.array([(a_p[0][i], a_p[1][i], a_p[2][i]) for i in range(len(a_p[0]))])
 
         #### Compute the tree of neighbours
-        #kdtree = KDTree(surface_pixels)
-        kdtree = KDTree(all_pixels)
+        kdtree = KDTree(surface_pixels)
         neighborhood_radius = 3.0
-        #pixel_neighbours = [kdtree.query_ball_point(p, r=neighborhood_radius) for p in surface_pixels]
-        pixel_neighbours = [kdtree.query_ball_point(p, r=neighborhood_radius) for p in all_pixels]
+        pixel_neighbours = [kdtree.query_ball_point(p, r=neighborhood_radius) for p in surface_pixels]
         
         #### Compute a spherical mesh surrounding the cell
         centre = np.mean(surface_pixels, axis=0)
         max_radius = 1.25*np.max(np.sqrt(np.sum((surface_pixels - centre)**2, axis=1)))
         icosphere = create_icosphere(max_radius,centre, subdivisions)
+       
+        # Initialise with the previous state of the cell // probably need to pass the previous computed meshes as parameters
+        # Works well with embryo surfaces, for cellular surfaces, the lineage is needed. This has not been implemented yet in this case
         if not cell_surfaces and len(previous_meshes) > 0:
             icosphere = create_icosphere2(max_radius, centre, subdivisions, previous_meshes[cl-1]) 
-        # initialise with the previous state of the cell // probably need to pass the previous computed meshes as parameters
-
+        
         points = icosphere.GetPoints()
         vertices = [points.GetPoint(i) for i in range(points.GetNumberOfPoints())]
         distances, closest_pixel_indices = min_distance_index(vertices, surface_pixels)
-        #distances, closest_pixel_indices = min_distance_index(vertices, all_pixels)
         closest_pixel_indices = closest_pixel_indices.astype(int)
 
         #### Iterate the update of the vertex positions until the mesh takes the shape of the cell
         for epoch in range(0, iterations):
-            start_time_epoch = time.time()
-        
-            #points = icosphere.GetPoints()
-            #vertices = [points.GetPoint(i) for i in range(points.GetNumberOfPoints())]
-            #print(len(pixel_neighbours), np.max(pixel_neighbours))
-            #print(len(all_pixels), len(pixel_neighbours), np.max(np.max(pixel_neighbours), len(closest_pixel_indices)))
+            
             #### Compute the distances of mesh vertices to the surface of the cell
             nearest_indices = [pixel_neighbours[closest_pixel_indices[i]] for i in range(len(vertices))]
-            surface_pixels_per_vertex = [all_pixels[pixel_neighbours[closest_pixel_indices[i]]] for i in range(len(vertices))]
-            #surface_pixels_per_vertex = [surface_pixels[pixel_neighbours[closest_pixel_indices[i]]] for i in range(len(vertices))]
+            surface_pixels_per_vertex = [surface_pixels[pixel_neighbours[closest_pixel_indices[i]]] for i in range(len(vertices))]
             distances, closest_pixel_indices = min_distance_index2(vertices, surface_pixels_per_vertex, nearest_indices)
             closest_pixel_indices = closest_pixel_indices.astype(int)
-            #print(len(closest_pixel_indices))
-
-            #distances = [np.min(np.sqrt(np.sum((surface_pixels - p)**2, axis=1))) for p in vertices]
-            #distances, closest_pixel_indices = min_distance_index(vertices, surface_pixels)
-            #closest_pixel_indices = closest_pixel_indices.astype(int)
-
+            
             #### Compute distance gradient for all mesh vertices in the 3d space
             dl = 1 # step
-            #print(len(all_pixels), len(pixel_neighbours), np.max(np.max(pixel_neighbours)), np.max(closest_pixel_indices))
+            
             # grad x
             vertices_x = [np.array(p) + [dl, 0, 0] for p in vertices]
-            #distances_x = [np.min(np.sqrt(np.sum((surface_pixels - p)**2, axis=1))) for p in vertices_x]
-            distances_x = [np.min(np.sqrt(np.sum((all_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_x[i])**2, axis=1))) for i in range(len(vertices_x))]
-            #distances_x = [np.min(np.sqrt(np.sum((surface_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_x[i])**2, axis=1))) for i in range(len(vertices_x))]
+            distances_x = [np.min(np.sqrt(np.sum((surface_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_x[i])**2, axis=1))) for i in range(len(vertices_x))]
             grad_x = np.array(distances_x) - np.array(distances)
 
             # grad y
             vertices_y = [np.array(p) + [0, dl, 0] for p in vertices]
-            #distances_y = [np.min(np.sqrt(np.sum((surface_pixels - p)**2, axis=1))) for p in vertices_y]
-            distances_y = [np.min(np.sqrt(np.sum((all_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_y[i])**2, axis=1))) for i in range(len(vertices_y))]
-            #distances_y = [np.min(np.sqrt(np.sum((surface_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_y[i])**2, axis=1))) for i in range(len(vertices_y))]
+            distances_y = [np.min(np.sqrt(np.sum((surface_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_y[i])**2, axis=1))) for i in range(len(vertices_y))]
             grad_y = np.array(distances_y) - np.array(distances)
 
             # grad z
             vertices_z = [np.array(p) + [0, 0, dl] for p in vertices]
-            #distances_z = [np.min(np.sqrt(np.sum((surface_pixels - p)**2, axis=1))) for p in vertices_z]
-            distances_z = [np.min(np.sqrt(np.sum((all_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_z[i])**2, axis=1))) for i in range(len(vertices_z))]
-            #distances_z = [np.min(np.sqrt(np.sum((surface_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_z[i])**2, axis=1))) for i in range(len(vertices_z))]
+            distances_z = [np.min(np.sqrt(np.sum((surface_pixels[pixel_neighbours[closest_pixel_indices[i]]] - vertices_z[i])**2, axis=1))) for i in range(len(vertices_z))]
             grad_z = np.array(distances_z) - np.array(distances)
 
             grad = [(grad_x[i], grad_y[i], grad_z[i]) for i in range(len(vertices))]    
@@ -282,44 +259,11 @@ def generate_regular_meshes(image_file, subdivisions, iterations, neta, cell_sur
             icosphere.SetPoints(points)
             icosphere.Modified()
 
-            end_time_epoch = time.time()
+            #end_time_epoch = time.time()
             #print("Cell " + str(cl) + "/" + str(nb_regions-1) + ", epoch " + str(epoch) + "/" + str(iterations) + f" processed in {end_time_epoch - start_time_epoch:.6f} seconds")
         end_time_cell = time.time()
-        print(f"Cell {cl} / {len(regions_range)} processed in {end_time_cell - start_time_cell:.6f} seconds")
+        print(f"Cell {cl-1} / {len(regions_range)} processed in {end_time_cell - start_time_cell:.6f} seconds")
 
         cell_meshes+=[icosphere]
 
     return cell_meshes
-
-
-subdivisions = int(sys.argv[2]) # Number of subdivision of the icosahedron. N=2 will yield meshes with 162 points, N=k ... with 10*4^k + 2 points
-iterations = int(sys.argv[3]) # Number of iterations of each update loop of the level set shape matching scheme
-cell_surfaces = False if sys.argv[4] == 'False' or sys.argv[4] == '0' else True # If true, computes cell surfaces, if false, computes embryonic surface. True by default
-
-neta = [1 if i % 5 == 0 else 1 for i in range(iterations)] # 'Learning rate' for each update loop. Alternate learning tends to convergence faster and is more robust
-
-# Specify the folder containing the .nii files
-#input_folder = 'nii/folder/'
-#output_folder = 'logs'
-input_folder = sys.argv[1]
-output_folder = input_folder.split("nii", 1)[0] + "obj" + input_folder.split("nii", 1)[1]
-output_folder = output_folder + "cells/" if cell_surfaces else output_folder + "emb/"
-if not os.path.exists(output_folder): os.makedirs(output_folder)
-print(input_folder, output_folder, cell_surfaces)
-
-# List all files in the folder
-file_list = os.listdir(input_folder)
-nii_images_list = [f for f in sorted(file_list) if f.endswith('.nii') or f.endswith('.inr')]
-
-t = 1
-previous_meshes = []
-for image_file in nii_images_list:
-    #print(image_file)
-    image_path = input_folder + image_file
-    cell_meshes = generate_regular_meshes(image_path, subdivisions, iterations, neta, cell_surfaces, previous_meshes)
-    previous_meshes = cell_meshes
-
-    # Write cell meshes to an OBJ file
-    obj_image_file = output_folder + os.path.splitext(image_file)[0] + '.obj'
-    save_meshes_obj(cell_meshes, t, obj_image_file)
-    t=t+1
