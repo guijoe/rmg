@@ -1,4 +1,5 @@
 import numpy as np
+import vtkmodules.all as vtk
 
 # Read mesh from file
 def read_mesh(mesh_file):
