@@ -43,10 +43,10 @@ for image_file in nii_images_list:
     obj_image_file = output_folder + "obj/" + os.path.splitext(image_file)[0] + '.obj'
     rmg.save_meshes_obj(cell_meshes, t, obj_image_file)
 
-    # Compute Spherical harmonics representation of the radius field on all meshes
+    # Compute Spherical harmonics representation of the (normalized) radius field on all meshes
     for i, mesh in enumerate(cell_meshes):
-        r, theta, phi, dA = mutils.compute_vertex_properties(mesh)
-        f = r
+        r, r_norm, theta, phi, dA, surface_area = mutils.compute_vertex_properties(mesh)
+        f = r_norm
         fi = np.zeros(r.shape)
 
         frames += [t-1]
