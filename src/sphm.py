@@ -43,23 +43,58 @@ def compute_decomposition(f,fi,Ylm_r,Ylm_i,dA,Lmax):
           flm[l][m+l] = flm_r[l][m+l]*np.sqrt(2)
         elif(m<0):
           flm[l][m+l] = flm_i[l][-m+l]*np.sqrt(2)
-
+    #print(flm[0][0])
     return flm_r, flm_i, flm
 
 # Rotation-invariant representation of harmonics
 def compute_energy_representation(flm, Ylm, Lmax, dA):
     Sl = np.zeros((Lmax+1))
     Slm = np.zeros((Ylm.shape[0],Ylm.shape[2]))
+    surface_area = np.sum(dA)
     for l in range(0,Lmax+1):
         for m in range(-l,l+1):
-            Slm[l] += flm[l][m+l]*Ylm[l][m+l]*dA
-        Sl[l] = np.round(np.linalg.norm(Slm[l]),2)
+            Slm[l] += flm[l][m+l]*Ylm[l][m+l]
+        #Slm[l] = Slm[l] * dA / surface_area
+        #Sl[l] = np.round(np.linalg.norm(Slm[l]),6)
+        Sl[l] = np.round(np.dot(Slm[l],Slm[l]* dA / surface_area),6)
+    return Sl
+
+def compute_energy_representation2(flm, Ylm, Lmax, dA):
+    Sl = np.zeros((Lmax+1))
+    Slm = np.zeros((Ylm.shape[0],Ylm.shape[2]))
+    #surface_area = np.sum(dA)
+    for l in range(0,Lmax+1):
+        for m in range(-l,l+1):
+            Sl[l] += flm[l][m+l]*flm[l][m+l]#*dA/surface_area
+        Sl[l] /= (flm[0][0]*flm[0][0]*(2*l+1))/(4*np.pi)
     return Sl
 
 # Compute Spherical harmonics of a field on a mesh
-def compute_sphm_inv_rep(f, fi, theta, phi, dA, Lmax):
+def compute_sphm_inv_rep(f, fi, Ylm_r, Ylm_i, Ylm, dA, Lmax):
+   #_, theta, phi, dA = compute_vertex_properties(mesh)
+   #Ylm_r,Ylm_i, Ylm = compute_all_harmonics(theta,phi,Lmax)
+   _, _, flm = compute_decomposition(f,fi,Ylm_r,Ylm_i,dA,Lmax)
+   Sl = compute_energy_representation(flm, Ylm, Lmax, dA)
+   return Sl
+
+def compute_sphm_inv_rep2(f, fi, Ylm_r, Ylm_i, Ylm, dA, Lmax):
+   #_, theta, phi, dA = compute_vertex_properties(mesh)
+   #Ylm_r,Ylm_i, Ylm = compute_all_harmonics(theta,phi,Lmax)
+   _, _, flm = compute_decomposition(f,fi,Ylm_r,Ylm_i,dA,Lmax)
+   Sl = compute_energy_representation2(flm, Ylm, Lmax, dA)
+   return Sl
+
+# Compute Spherical harmonics of a field on a mesh
+def compute_sphm_inv_rep3(f, fi, theta, phi, dA, Lmax):
    #_, theta, phi, dA = compute_vertex_properties(mesh)
    Ylm_r,Ylm_i, Ylm = compute_all_harmonics(theta,phi,Lmax)
    _, _, flm = compute_decomposition(f,fi,Ylm_r,Ylm_i,dA,Lmax)
    Sl = compute_energy_representation(flm, Ylm, Lmax, dA)
+   return Sl
+
+def compute_sphm_inv_rep4(f, fi, theta, phi, dA, Lmax):
+   #_, theta, phi, dA = compute_vertex_properties(mesh)
+   Ylm_r,Ylm_i, Ylm = compute_all_harmonics(theta,phi,Lmax)
+   _, _, flm = compute_decomposition(f,fi,Ylm_r,Ylm_i,dA,Lmax)
+   Sl = compute_energy_representation2(flm, Ylm, Lmax, dA)
    return Sl

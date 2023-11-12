@@ -5,11 +5,12 @@ root_folder = "nii/" #Put all embryo folders in this directory
 
 folders = [
     #"embryo1",
-    "embryo2",
+    #"embryo2",
+    "Astec-Pm1"
 ]
 
-folders = os.listdir(root_folder)
-folders = [f for f in folders if os.path.isdir(os.path.join(root_folder, f)) and not f.startswith('.')]
+#folders = os.listdir(root_folder)
+#folders = [f for f in folders if os.path.isdir(os.path.join(root_folder, f)) and not f.startswith('.')]
 
 start_time_batch = time.time()
 for folder in folders:
@@ -18,9 +19,9 @@ for folder in folders:
 
     folder_path = root_folder + folder + "/"
     
-    cell_surfaces = True # If True, computes cellular surfaces, if False, computes embryonic surface
+    cell_surfaces = False # If True, computes cellular surfaces, if False, computes embryonic surface
     subdivisions = 2
-    iterations = 125
+    iterations = 100
     
     if not cell_surfaces:
         subdivisions = 5
