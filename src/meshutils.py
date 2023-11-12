@@ -243,7 +243,7 @@ def get_vertex_1_2_ring(mesh):
             if tri[1] != i: ring1[i] += [tri[1]]
             if tri[2] != i: ring1[i] += [tri[2]]
 
-        ring1[i] = list(set(ring1))
+        ring1[i] = list(set(ring1[i]))
 
     for i in range(num_vertices):
         ring2 += [[]]
@@ -252,6 +252,31 @@ def get_vertex_1_2_ring(mesh):
             ring2[i] += [k for k in ring1[j] if k not in ring1[i]]
 
     return ring1, ring2
+
+def smooth_field(mesh, field):
+
+    smoothed_field = np.zeros(field.shape)
+    num_vertices = mesh.GetNumberOfPoints()
+
+    ring1, ring2 = get_vertex_1_2_ring(mesh)
+
+    kernel = np.array([np.exp(-0.5*(0/4)), np.exp(-0.5*(1/4)), np.exp(-0.5*(4/4)), np.exp(-0.5*(0/4)) + np.exp(-0.5*(1/4)) + np.exp(-0.5*(1/4))])
+
+    for i in range(num_vertices):
+
+        smoothed_field[i] += kernel[0] * field[i]
+        weight_sum = kernel[0]
+        for j in ring1[i]:
+            smoothed_field[i] += kernel[1] * field[j]
+            weight_sum += kernel[1]
+
+        for j in ring2[i]:
+            smoothed_field[i] += kernel[2] * field[j]
+            weight_sum += kernel[2]
+
+    smoothed_field /= weight_sum
+
+    return smoothed_field
 
 
 # Compute vertex properties: dA, r, theta, phi

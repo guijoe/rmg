@@ -21,7 +21,7 @@ for folder in folders:
     
     cell_surfaces = False # If True, computes cellular surfaces, if False, computes embryonic surface
     subdivisions = 2
-    iterations = 100
+    iterations = 125
     
     if not cell_surfaces:
         subdivisions = 5

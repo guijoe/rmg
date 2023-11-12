@@ -23,7 +23,7 @@ if not os.path.exists(output_folder + "obj"): os.makedirs(output_folder + "obj")
 file_list = os.listdir(input_folder)
 nii_images_list = [f for f in sorted(file_list) if f.endswith('.nii') or f.endswith('.inr')]
 
-neta = [1 if i % 5 == 0 else 1 for i in range(iterations)] # 'Learning rate' for each update loop. Alternate learning tends to converge faster and is more robust
+neta = [5 if i % 5 == 0 else 1 for i in range(iterations)] # 'Learning rate' for each update loop. Alternate learning tends to converge faster and is more robust
 
 """ def process_image(input_folder, image_file, subdivisions, iterations, neta, cell_surfaces, previous_meshes, t):
     #print(image_file)
@@ -80,7 +80,7 @@ Sl = []
 frames = []
 cell_ids = []
 
-nii_images_list = nii_images_list[0:1]
+#nii_images_list = nii_images_list[0:1]
 for image_file in nii_images_list:
     image_path = input_folder + image_file
 
