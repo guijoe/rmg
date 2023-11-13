@@ -7,115 +7,6 @@ from skimage import morphology,measure
 import src.meshutils as mutils
 
 
-# Creates a basic icosahedron sphere of 12 vertices
-def create_base_ico_sphere():
-    
-    # Create vertices
-    theta = 26.56505117707799 * np.pi / 180
-    stheta = np.sin(theta)
-    ctheta = np.cos(theta)
-
-    vertices = []
-    vertices += [(0.0, 0.0, -1.0)]
-
-    phi = np.pi / 5
-    for i in range(1,6): 
-        vertices +=[(ctheta * np.cos(phi), ctheta * np.sin(phi), -stheta)]
-        phi += 2 * np.pi / 5
-
-    phi = 0
-    for i in range(6,11):
-        vertices +=[(ctheta * np.cos(phi), ctheta * np.sin(phi), stheta)]
-        phi += 2 * np.pi / 5
-
-    vertices += [(0, 0, 1)]
-
-    # Normalize the vertices to form a unit sphere
-    vertices = [tuple(np.array(v) / np.linalg.norm(v)) for v in vertices]
-
-    points = vtk.vtkPoints()
-    # Add vertices to the mesh
-    for v in vertices:
-        points.InsertNextPoint(v)
-
-    # Create triangles
-    icosahedron_faces = [
-            (0, 2, 1),
-            (0, 3, 2),
-            (0, 4, 3),
-            (0, 5, 4),
-            (0, 1, 5),
-            (1, 2, 7),
-            (2, 3, 8),
-            (3, 4, 9),
-            (4, 5, 10),
-            (5, 1, 6),
-            (1, 7, 6),
-            (2, 8, 7),
-            (3, 9, 8),
-            (4, 10, 9),
-            (5, 6, 10),
-            (6, 7, 11),
-            (7, 8, 11),
-            (8, 9, 11),
-            (9, 10, 11),
-            (10, 6, 11),
-        ]
-
-    triangles = vtk.vtkCellArray()
-    for i, tri in enumerate(icosahedron_faces):
-        triangles.InsertNextCell(3)
-        for j in tri:
-            triangles.InsertCellPoint(j)
-
-    # Create a polydata object
-    mesh = vtk.vtkPolyData()
-    mesh.SetPoints(points)
-    mesh.SetPolys(triangles)
-
-    return mesh
-
-# Creates a sphere given a radius, centre, based of the subdivisions of the basic icosahedron sphere
-def create_icosphere(radius: float, centre, subdivisions: int):
-    icosphere = create_base_ico_sphere()
-
-    # Loop subdivision
-    subdivide = vtk.vtkLoopSubdivisionFilter()
-    subdivide.SetNumberOfSubdivisions(subdivisions)
-    subdivide.SetInputData(icosphere)
-    subdivide.Update()
-
-    icosphere = subdivide.GetOutput()
-
-    points = icosphere.GetPoints()
-    vertices = [np.array(points.GetPoint(i)) for i in range(points.GetNumberOfPoints())]
-    vertices = [tuple(np.array(v) / np.linalg.norm(v)) for v in vertices]
-    vertices = [np.array(points.GetPoint(i))*radius for i in range(points.GetNumberOfPoints())]
-    vertices = [np.array(v) + np.array(centre) for v in vertices]
-    
-    for i in range(points.GetNumberOfPoints()):
-        points.SetPoint(i, vertices[i])
-    icosphere.SetPoints(points)
-    
-    icosphere.Modified()
-    return icosphere
-
-def create_icosphere2(radius: float, centre, subdivisions: int, previous_mesh: vtk.vtkPolyData()):
-    icosphere = create_icosphere(radius, centre, subdivisions)
-
-    points1 = icosphere.GetPoints()
-    points2 = previous_mesh.GetPoints()
-    vertices = [(np.array(points1.GetPoint(i)) + np.array(points2.GetPoint(i)))/2 for i in range(points1.GetNumberOfPoints())]
-    
-    for i in range(len(vertices)):
-        points1.SetPoint(i, vertices[i])
-    icosphere.SetPoints(points1)
-    
-    icosphere.Modified()
-    return icosphere
-    
-    #return icosphere
-
 # Computes the minimum distance to the pixel cloud and the indices of the closest pixels
 def min_distance_index(vertices, surface_pixels):
     min_distance = np.zeros(len(vertices))
@@ -136,28 +27,8 @@ def min_distance_index2(vertices, surface_pixels_per_vertex, nearest_indices):
     return min_distance,min_index
 
 # Saves mesh in obj format
-def save_meshes_obj(meshes, time, objfile):
-    tri_start = 1
-    meshes_str = ""
-    for i in range(0, len(meshes)):
-        mesh_str = "g " + str(time) + "," + str(i) + ",0\n"
 
-        for j in range(0, meshes[i].GetNumberOfPoints()):
-            p = np.round(np.array(meshes[i].GetPoint(j)), 6)
-            mesh_str += "v " + str(p[0]) + " " + str(p[1]) + " " + str(p[2]) + "\n"
-
-        for j in range(0, meshes[i].GetNumberOfCells()):
-            tri = meshes[i].GetCell(j)
-            p_ids = tri.GetPointIds()
-            mesh_str += "f " + str(tri_start + p_ids.GetId(0)) + " " + str(tri_start + p_ids.GetId(1)) + " " + str(tri_start + p_ids.GetId(2)) + "\n"
-
-        meshes_str += mesh_str
-        tri_start += meshes[i].GetNumberOfPoints()
-
-    with open(objfile, "w") as file:
-        file.write(meshes_str)
-
-def generate_regular_meshes(image_file, subdivisions, iterations, neta, cell_surfaces, previous_meshes):
+def generate_regular_meshes(image_file, subdivisions, iterations, neta, cell_surfaces, previous_meshes, subdivide_previous_meshes):
 
     image = morphonet.tools.imread(image_file)
     labeled_image = measure.label(image)
@@ -188,12 +59,15 @@ def generate_regular_meshes(image_file, subdivisions, iterations, neta, cell_sur
         #### Compute a spherical mesh surrounding the cell
         centre = np.mean(surface_pixels, axis=0)
         max_radius = 1.25*np.max(np.sqrt(np.sum((surface_pixels - centre)**2, axis=1)))
-        icosphere = create_icosphere(max_radius,centre, subdivisions)
-       
+        icosphere = mutils.create_icosphere(max_radius,centre, subdivisions)
+
         # Initialise with the previous state of the cell // probably need to pass the previous computed meshes as parameters
         # Works well with embryo surfaces, for cellular surfaces, the lineage is needed. This has not been implemented yet in this case
-        if not cell_surfaces and len(previous_meshes) > 0:
-            icosphere = create_icosphere2(max_radius, centre, subdivisions, previous_meshes[cl-1]) 
+        if not cell_surfaces:
+            if len(previous_meshes) > 0 and not subdivide_previous_meshes:
+                icosphere = mutils.create_icosphere2(max_radius, centre, subdivisions, previous_meshes[cl-1])
+            if len(previous_meshes) > 0 and subdivide_previous_meshes:
+                icosphere = mutils.subdivide_mesh(previous_meshes[cl-1]) 
         
         points = icosphere.GetPoints()
         vertices = [points.GetPoint(i) for i in range(points.GetNumberOfPoints())]

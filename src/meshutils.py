@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import vtkmodules.all as vtk
 
@@ -132,6 +133,29 @@ def create_base_ico_sphere():
 
     return mesh
 
+# Saves mesh in obj format
+def save_meshes_obj(meshes, time, objfile):
+    tri_start = 1
+    meshes_str = ""
+    for i in range(0, len(meshes)):
+        mesh_str = "g " + str(time) + "," + str(i) + ",0\n"
+
+        for j in range(0, meshes[i].GetNumberOfPoints()):
+            p = np.round(np.array(meshes[i].GetPoint(j)), 6)
+            mesh_str += "v " + str(p[0]) + " " + str(p[1]) + " " + str(p[2]) + "\n"
+
+        for j in range(0, meshes[i].GetNumberOfCells()):
+            tri = meshes[i].GetCell(j)
+            p_ids = tri.GetPointIds()
+            mesh_str += "f " + str(tri_start + p_ids.GetId(0)) + " " + str(tri_start + p_ids.GetId(1)) + " " + str(tri_start + p_ids.GetId(2)) + "\n"
+
+        meshes_str += mesh_str
+        tri_start += meshes[i].GetNumberOfPoints()
+
+    with open(objfile, "w") as file:
+        file.write(meshes_str)
+
+
 # Creates a sphere given a radius, centre, based of the subdivisions of the basic icosahedron sphere
 def create_icosphere(radius: float, centre, subdivisions: int):
     icosphere = create_base_ico_sphere()
@@ -157,18 +181,56 @@ def create_icosphere(radius: float, centre, subdivisions: int):
     icosphere.Modified()
     return icosphere
 
-def read_all_meshes(obj_folder, multiple):
+def create_icosphere2(radius: float, centre, subdivisions: int, previous_mesh: vtk.vtkPolyData()):
+    icosphere = create_icosphere(radius, centre, subdivisions)
+
+    points1 = icosphere.GetPoints()
+    points2 = previous_mesh.GetPoints()
+    vertices = [(np.array(points1.GetPoint(i)) + np.array(points2.GetPoint(i)))/2 for i in range(points1.GetNumberOfPoints())]
+    
+    for i in range(len(vertices)):
+        points1.SetPoint(i, vertices[i])
+    icosphere.SetPoints(points1)
+    
+    icosphere.Modified()
+    return icosphere
+    
+    #return icosphere
+
+
+
+def subdivide_mesh(mesh):
+    subdivisions = 1
+
+    # Loop subdivision
+    subdivide = vtk.vtkLoopSubdivisionFilter()
+    subdivide.SetNumberOfSubdivisions(subdivisions)
+    subdivide.SetInputData(mesh)
+    subdivide.Update()
+
+    mesh = subdivide.GetOutput()
+
+    return mesh
+
+def read_all_meshes(obj_folder):
     cell_meshes = []
+    file_list = os.listdir(obj_folder)
+    obj_images_list = [f for f in sorted(file_list) if f.endswith('.obj')]
+    
+    for image_file in obj_images_list:
+    
+        image_path = obj_folder + image_file
+        with open(image_path, 'r') as obj_file:
+            meshes = read_meshes(obj_file)
 
-    for obj_file in obj_folder:
-        obj_path = obj_folder + obj_file
+        cell_meshes += [meshes]
 
-        meshes = read_meshes(obj_path)
+    return cell_meshes
 
-    if multiple:
-        return cell_meshes
-    else:
-        return cell_meshes[0]
+    #if multiple:
+    #    return cell_meshes
+    #else:
+    #    return cell_meshes[0]
         
 def create_vtk_mesh(mesh_data):
     vtk_meshes = []
