@@ -48,8 +48,8 @@ file_list = os.listdir(input_folder)
 obj_images_list = [f for f in sorted(file_list) if f.endswith('.obj')]
 
 
-active = False
-elastic = True
+active = True
+elastic = False
 viscous = False
 
 
@@ -66,7 +66,7 @@ ico_sphere = mutils.create_icosphere(radius,centre, 5)
 ref_mesh = ico_sphere
 nabla_ref = mutils.compute_grad_operator(ref_mesh)
 
-t_max = 90#(len(obj_images_list)-2) #3
+t_max = 3#(len(obj_images_list)-2) #3
 obj_images_list = obj_images_list[0:t_max]
 
 columns = ["cid", "id", "fr", "l1", "l2", "l3", "m1", "m2", "m3", "s11", "s12", "s13", "s21", "s22", "s23", "s31", "s32", "s33"]
@@ -164,6 +164,25 @@ for t in range(len(obj_images_list)-2):
     end_time_file = time.time()
     print(f"Execution time for frame {t} before solving linear system: {end_time_file-start_time_file}")
 
+
+    if active:
+        for i in range(3):
+            print(A.shape, b.shape)
+            A_T = np.transpose(A[:,:,i])
+            x = np.linalg.inv(A_T@A)@A_T@b[:,i]
+
+            res = (A@x-b[:,i])
+            res = np.dot(res, res)
+
+            x = np.round(x, 6)
+
+            res = np.round(res, 6)
+            print(res, np.sum(x))
+            data[start:start+num_vertices, 9 + i*3] = x[0:10242]
+            data[start:start+num_vertices, 10 + i*3] = x[10242:20484]
+            data[start:start+num_vertices, 11 + i*3] = x[20484:30726]
+            data[start:start+num_vertices, 4] = res
+
     if elastic:
         A = np.concatenate((A[:,:,0],A[:,:,1],A[:,:,2]), axis=0)
         #A_csc = csc_matrix(A)
@@ -208,7 +227,7 @@ for t in range(len(obj_images_list)-2):
     start += num_vertices
 
 df = pd.DataFrame(columns=columns, data=data)
-df.to_csv("../UsefulLogs/3009_all/UsefulLogs_StrainInference3D_717797914938.3593/viscoelastic_params.csv", index=False)
+df.to_csv("../UsefulLogs/3009_all/UsefulLogs_StrainInference3D_717797914938.3593/viscoelastic_params_total_stress.csv", index=False)
 
 end_time_batch = time.time()
 print(f"Total execution time: {end_time_batch - start_time_batch:.6f} seconds")

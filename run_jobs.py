@@ -13,6 +13,7 @@ folders = [
 #folders = [f for f in folders if os.path.isdir(os.path.join(root_folder, f)) and not f.startswith('.')]
 
 start_time_batch = time.time()
+#command = ""
 for folder in folders:
     
     start_time_folder = time.time()
@@ -24,8 +25,9 @@ for folder in folders:
     iterations = 125
     
     if not cell_surfaces:
-        subdivisions = 5
+        subdivisions = 3
     
+    #command += "python3 main.py " + (folder_path) + " " + str(subdivisions) + " " + str(iterations) + " " + str(cell_surfaces) + " &"
     os.system("python3 main.py " + (folder_path) + " " + str(subdivisions) + " " + str(iterations) + " " + str(cell_surfaces))
 
     end_time_folder = time.time()
