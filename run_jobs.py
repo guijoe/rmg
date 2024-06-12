@@ -2,11 +2,19 @@ import os
 import time
 
 root_folder = "nii/" #Put all embryo folders in this directory
+#root_folder = "../../homeosphere/DATA/"
 
 folders = [
-    #"embryo1",
+    #"Astec-Phmamm1-v2/HomeoSphere_OBJ/cells/",
+    #"Astec-Phmamm3-v2/HomeoSphere_OBJ/cells/",
+    #"Astec-Phmamm4-v2/HomeoSphere_OBJ/cells/",
+    #"Astec-Phmamm5-v2/HomeoSphere_OBJ/cells/",
+    #"Astec-Phmamm7-v2/HomeoSphere_OBJ/cells/",
+    #"Astec-Phmamm8-v2/HomeoSphere_OBJ/cells/",
+    #"Astec-Phmamm9-v2/HomeoSphere_OBJ/cells/",
+    "embryo1",
     #"embryo2",
-    "Astec-Pm1"
+    #"Astec-Pm1"
 ]
 
 #folders = os.listdir(root_folder)
@@ -29,6 +37,7 @@ for folder in folders:
     
     #command += "python3 main.py " + (folder_path) + " " + str(subdivisions) + " " + str(iterations) + " " + str(cell_surfaces) + " &"
     os.system("python3 main.py " + (folder_path) + " " + str(subdivisions) + " " + str(iterations) + " " + str(cell_surfaces))
+    #os.system("python3 karim.py " + (folder_path))
 
     end_time_folder = time.time()
 

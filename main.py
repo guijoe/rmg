@@ -39,26 +39,32 @@ cell_ids = []
 #previous_meshes
 #nii_images_list = nii_images_list[0:1]
 
-def process_image(input_folder, image_file, subdivisions, iterations, neta, cell_surfaces, previous_folder, t, subdivide_previous_meshes, output_folder):
+def process_image(input_folder, image_file, subdivisions, iterations, neta, cell_surfaces, previous_folder, t, previous_meshes_time, output_folder):
     
-    if subdivide_previous_meshes:
-        previous_meshes = mutils.read_all_meshes(previous_folder)
+    #if subdivide_previous_meshes_space:
+    previous_meshes_space = mutils.read_all_meshes(previous_folder)
+
+    #file_list = os.listdir(output_folder)
+    #obj_images_list = [f for f in sorted(file_list) if f.endswith('.obj')]
+    #previous_image = mutils.read_meshes(obj_images_list[len(obj_images_list)-1])
+    #previous_meshes_time = mutils.read_all_meshes(previous_image)
 
     #print("Processing time point: ", t, image_file)
     image_path = input_folder + image_file
-    cell_meshes = rmg.generate_regular_meshes(image_path, subdivisions, iterations, neta, cell_surfaces, previous_meshes[t-1], subdivide_previous_meshes)
-    previous_meshes = cell_meshes
+    cell_meshes = rmg.generate_regular_meshes(image_path, subdivisions, iterations, neta, cell_surfaces, previous_meshes_space[t-1], previous_meshes_time)
+    previous_meshes_time = cell_meshes
 
     # Write cell meshes to an OBJ file
     obj_image_file = output_folder  + os.path.splitext(image_file)[0] + '.obj'
     mutils.save_meshes_obj(cell_meshes, t, obj_image_file)
     #t=t+1
-    return previous_meshes
+    return previous_meshes_time
 
 def run(i):
 
-    previous_folder = ""
-    previous_meshes = []
+    previous_folder = "" # folder where the previous iteration of mesh subdivisions are stored
+    previous_meshes_time = []
+    #previous_meshes_space = []
 
     for sub in range(2, subdivisions+1):
         if sub == 2:
@@ -69,8 +75,8 @@ def run(i):
 
             for image_file in nii_images_list:
                 image_path = input_folder + image_file
-                cell_meshes = rmg.generate_regular_meshes(image_path, sub, iterations, neta, cell_surfaces, previous_meshes, subdivide_previous_meshes=False)
-                previous_meshes = cell_meshes
+                cell_meshes = rmg.generate_regular_meshes(image_path, sub, iterations, neta, cell_surfaces, [], previous_meshes_time)
+                previous_meshes_time = cell_meshes
 
                 obj_image_file = previous_folder + os.path.splitext(image_file)[0] + '.obj'
                 mutils.save_meshes_obj(cell_meshes, t, obj_image_file)
@@ -80,7 +86,7 @@ def run(i):
             t = 1
             #arguments = []
             
-            previous_meshes = mutils.read_all_meshes(previous_folder)
+            #previous_meshes_space = mutils.read_all_meshes(previous_folder)
             #print(previous_folder , ", " , len(previous_meshes))        
 
             present_folder = output_folder + f"N={sub}/"
@@ -89,7 +95,7 @@ def run(i):
             #print("number of images: ", len(nii_images_list), batch_length)
             for image_file in nii_images_list:#, batch_length):
                 #arguments += [(input_folder, image_file, sub, 50, neta, cell_surfaces, previous_folder, t, True, present_folder)]
-                process_image(input_folder, image_file, sub, 50, neta, cell_surfaces, previous_folder, t, True, present_folder)
+                previous_meshes_time = process_image(input_folder, image_file, sub, 50, neta, cell_surfaces, previous_folder, t, previous_meshes_time, present_folder)
                 t=t+1
             
             previous_folder = present_folder

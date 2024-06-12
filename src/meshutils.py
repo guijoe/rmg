@@ -137,7 +137,7 @@ def create_base_ico_sphere():
 def save_meshes_obj(meshes, time, objfile):
     tri_start = 1
     meshes_str = ""
-    for i in range(0, len(meshes)):
+    for i in meshes: #range(0, len(meshes)):
         mesh_str = "g " + str(time) + "," + str(i) + ",0\n"
 
         for j in range(0, meshes[i].GetNumberOfPoints()):
@@ -154,7 +154,6 @@ def save_meshes_obj(meshes, time, objfile):
 
     with open(objfile, "w") as file:
         file.write(meshes_str)
-
 
 # Creates a sphere given a radius, centre, based of the subdivisions of the basic icosahedron sphere
 def create_icosphere(radius: float, centre, subdivisions: int):
@@ -197,8 +196,6 @@ def create_icosphere2(radius: float, centre, subdivisions: int, previous_mesh: v
     
     #return icosphere
 
-
-
 def subdivide_mesh(mesh):
     subdivisions = 1
 
@@ -209,6 +206,29 @@ def subdivide_mesh(mesh):
     subdivide.Update()
 
     mesh = subdivide.GetOutput()
+
+    return mesh
+
+def subdivide_mesh2(mesh, mesh2):
+    subdivisions = 1
+
+    # Loop subdivision
+    subdivide = vtk.vtkLoopSubdivisionFilter()
+    subdivide.SetNumberOfSubdivisions(subdivisions)
+    subdivide.SetInputData(mesh)
+    subdivide.Update()
+
+    mesh = subdivide.GetOutput()
+
+    points1 = mesh.GetPoints()
+    points2 = mesh2.GetPoints()
+    vertices = [(np.array(points1.GetPoint(i)) + np.array(points2.GetPoint(i)))/2 for i in range(points1.GetNumberOfPoints())]
+    
+    for i in range(len(vertices)):
+        points1.SetPoint(i, vertices[i])
+    mesh.SetPoints(points1)
+    
+    mesh.Modified()
 
     return mesh
 
@@ -339,7 +359,6 @@ def smooth_field(mesh, field):
     smoothed_field /= weight_sum
 
     return smoothed_field
-
 
 # Compute vertex properties: dA, r, theta, phi
 def compute_vertex_properties(mesh):
@@ -491,6 +510,55 @@ def compute_normals(mesh):
     normals = [normals_filter.GetOutput().GetPointData().GetNormals().GetTuple(i) for i in range(num_vertices)]
     
     return normals
+
+def tn_decompose_tensor(mesh, tensorField):
+    normals = np.array(compute_normals(mesh))
+
+    #print("TensorField shape:", tensorField.shape)
+
+    tT = np.zeros(tensorField.shape)
+    nT = np.zeros(tensorField.shape)
+
+    t_lbds = np.zeros(normals.shape)
+    n_lbds = np.zeros(normals.shape)
+
+    t_vecs = np.zeros(tensorField.shape)
+    n_vecs = np.zeros(tensorField.shape)
+
+    for i in range(len(tensorField)):
+        
+        T = tensorField[i,:,:]
+        Pn = np.outer(normals[i,:],normals[i,:])
+        Pt = np.eye(3) - Pn
+
+        nT[i,:,:] = Pn@T@Pn
+        tT[i,:,:] = Pt@T@Pt
+
+        eig_vals, eig_vecs = np.linalg.eig(tT[i,:,:])
+        t_lbds[i,:] = eig_vals
+        t_vecs[i,:,:] = eig_vecs
+
+        non_zero_eigenvalues = sorted([t_lbds[i,ev] for ev in range(len(t_lbds[i])) if abs(t_lbds[i,ev]) > 1e-6])
+        #print(t_lbds[i,:])
+        if len(non_zero_eigenvalues) == 2:
+            difference = non_zero_eigenvalues[1] - non_zero_eigenvalues[0]
+        #else:
+        #    print("eigen values:", non_zero_eigenvalues)
+
+    return tT,nT
+
+def calculate_eigenvalue_difference(tangential_components):
+    eigenvalue_differences = []
+    for T_tangential in tangential_components:
+        eigenvalues, _ = np.linalg.eig(T_tangential)
+        # Find the two non-zero eigenvalues
+        non_zero_eigenvalues = sorted([ev for ev in eigenvalues if abs(ev) > 1e-6])
+        if len(non_zero_eigenvalues) == 2:
+            difference = non_zero_eigenvalues[1] - non_zero_eigenvalues[0]
+        else:
+            difference = 0  # Handle the edge case where the tangential component might not have exactly 2 non-zero eigenvalues
+        eigenvalue_differences.append(difference)
+    return eigenvalue_differences
 
 def compute_grad_operator(mesh):
     num_vertices = mesh.GetNumberOfPoints()

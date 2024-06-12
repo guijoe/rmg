@@ -12,7 +12,7 @@ from scipy.sparse.linalg import lsqr
 from scipy.sparse import csc_matrix
 
 
-def solve_underdetermined_system(A, b):
+def solve_underdetermined_system2(A, b):
     
     objective_function = lambda x: np.linalg.norm(np.dot(A, x) - b)**2
     initial_guess = np.zeros(A.shape[1])
@@ -28,12 +28,39 @@ def solve_linear_system(A, b):
         x, residuals, rank, singular_values = np.linalg.lstsq(A, b, rcond=None)
         return x, np.array(residuals)
     elif num_equations < num_unknowns:
-        x, residuals = solve_underdetermined_system(A, b)
+        x, residuals = solve_underdetermined_system2(A, b)
         return x
     else:
         x = np.linalg.solve(A, b)
         return x, np.zeros(num_equations)
 
+
+def solve_for_stress(A, b, iterations):
+    n = A.shape[1]//9
+    x = np.ones(A.shape[1])
+    #x = np.random.rand(A.shape[1])
+    lr = 0.0001
+
+    for epoch in range(iterations):
+        res = A@x-b
+        grad = 2*A.T@(res)
+
+        pos = [1,2,5]
+        pos_neg = [3,6,7]
+        grad_sym = np.zeros(A.shape[1])
+        for i in range(len(pos)):
+            grad_sym[n*pos[i]:n*(pos[i]+1)] = 2*(x[n*pos[i]:n*(pos[i]+1)] - x[n*pos_neg[i]:n*(pos_neg[i]+1)])
+            grad_sym[n*pos_neg[i]:n*(pos_neg[i]+1)] = -2*(x[n*pos[i]:n*(pos[i]+1)] - x[n*pos_neg[i]:n*(pos_neg[i]+1)])
+        
+        grad += grad_sym
+        print(epoch, np.dot(res,res), np.dot(grad, grad))
+        x = x - lr * grad
+    
+    for i in range(9):
+        print(x[i*n])
+    #result = minimize(objective_function, initial_guess)
+
+    return x, res
 
 #root_folder = "obj/" #Put all embryo folders in this directory
 
@@ -91,8 +118,6 @@ for t in range(len(obj_images_list)-2):
     velocities = mutils.compute_velocities(cell_meshes, d_t)
     nabla_t = mutils.compute_grad_operator(cell_meshes[0])
     _, _, _, _, dA, surface_area, _, _ = mutils.compute_vertex_properties(cell_meshes[0])
-    
-    
     
     E_t = np.zeros((num_vertices, 3,3))
     
@@ -166,22 +191,22 @@ for t in range(len(obj_images_list)-2):
 
 
     if active:
+        n = num_vertices
+        A = np.zeros((3*n, 9*n))
         for i in range(3):
-            print(A.shape, b.shape)
-            A_T = np.transpose(A[:,:,i])
-            x = np.linalg.inv(A_T@A)@A_T@b[:,i]
+            A[i * n: (i + 1) * n, i * 3 * n: (i + 1) * 3 * n] = A_active[:,:,i]
+        b = np.reshape(b, (b.shape[0]*b.shape[1]))
+        
+        print(A.shape, b.shape)
+        x,res = solve_for_stress(A, b, 10)
 
-            res = (A@x-b[:,i])
-            res = np.dot(res, res)
+        res = np.round(res, 6)
+        print(res, np.sum(x))
 
-            x = np.round(x, 6)
-
-            res = np.round(res, 6)
-            print(res, np.sum(x))
-            data[start:start+num_vertices, 9 + i*3] = x[0:10242]
-            data[start:start+num_vertices, 10 + i*3] = x[10242:20484]
-            data[start:start+num_vertices, 11 + i*3] = x[20484:30726]
-            data[start:start+num_vertices, 4] = res
+        #data[start:start+num_vertices, 4] = res
+        for i in range(9):
+            data[start:start+num_vertices, 9 + i] = x[n*i:n*(i+1)]
+             
 
     if elastic:
         A = np.concatenate((A[:,:,0],A[:,:,1],A[:,:,2]), axis=0)
